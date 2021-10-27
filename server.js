@@ -2,13 +2,15 @@ const express = require('express');
 const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
 const cors = require('cors');
+const dotenv = require('dotenv');
+dotenv.config();
 
 const Plan = require('./schemas/plan');
 
 const app = express();
 const HTTP_PORT = process.env.PORT || 8080;
 
-mongoose.connect('mongodb+srv://dbUser:456654@cluster0.svjg9.mongodb.net/YTConcerts_plansAPI?retryWrites=true&w=majority',
+mongoose.connect(process.env.MONGODB_URI,
     {},
     (error) => {
         if (error) {
