@@ -1,90 +1,132 @@
 const express = require('express');
-const path = require("path");
-const clientSessions = require("client-sessions");
-const userService = require("./user-service.js");
+const mongoose = require('mongoose');
+const bodyParser = require('body-parser');
+const cors = require('cors');
+
+const Plan = require('./schemas/plan');
 
 const app = express();
-
-
-
-//middelware
-app.use(express.urlencoded({extended: true}));
-
-app.use(clientSessions({
-    cookieName: "session", // this is the object name that will be added to 'req'
-    secret: "bieonDFBdiNIdsS", // this should be a long un-guessable string.
-    duration: 5 * 60 * 1000, // duration of the session in milliseconds (5 minutes)
-    activeDuration: 1000 * 60 // the session will be extended by this many ms each request (1 minute)
-  }));
-
-
-
 const HTTP_PORT = process.env.PORT || 8080;
 
+mongoose.connect('mongodb+srv://dbUser:456654@cluster0.svjg9.mongodb.net/YTConcerts_plansAPI?retryWrites=true&w=majority',
+    {},
+    (error) => {
+        if (error) {
+            console.log('DB connection failed');
+        }
+        else {
+            console.log('DB conncetion success');
+        }
+    });
 
 
-
+// middleware
+app.use(express.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(cors());
 
 
 app.get('/', (req, res) => {
     res.send("Hello. This is YT concert's server.");
 });
 
-app.get('/user/login', (req, res) =>{
-    res.sendFile(path.join(__dirname, 'loginForm.html'));
-});
 
-app.get('/user/register', (req, res) =>{
-    res.sendFile(path.join(__dirname, 'registerForm.html'));
-});
+/*
+    GET
+    /api/users/:id/plans
 
 
-app.post('/user/register', (req, res) => {
-
-    userService.registerUser(req.body)
-    .then((msg) => {
-        res.send(msg);
-    })
-    .catch((err) => {
-        res.send("There was an error creating the user account:" + err);
-    })
-
-});
+    POST
+    /api/users/:id/plans
+    
+    
+    DELETE
+    /api/users/:userId/plans/:concertId
+*/
 
 
-app.post('/user/login', (req, res) => {
+app.get('/api/users/:id/plans', async (req, res) => {
 
-    userService.checkUser(req.body)
-    .then((user) => {
+    try {
+        const plans = await Plan.find({userId: req.params.id});
+        res.json(plans);
+    } catch (err) {
+        res.json({
+            error: {
+                message: err.message
+            }
+        });
+    };
 
-        // Add the user on the session
-        req.session.user = {
-            userID: user.userID
+})
+
+app.post('/api/users/:id/plans', async (req, res) => {
+
+    const newPlan = {
+        userId: req.params.id,
+        concertId: req.body.concertId
+    };
+
+    try {
+        const planCreated = await Plan.create(newPlan);
+        res.json(planCreated);
+    } catch(err) {
+
+        // console.log(err)
+
+        if(err.code === 11000) {
+            res.json({
+                error: {
+                    message: "The concert is already added to the plan!"
+                }
+            });
+        }
+        else {
+            res.json({
+                error: {
+                    message: err.message
+                }
+            });
+        }
+        
+    };
+    
+    
+})
+
+
+app.delete('/api/users/:userId/plans/:concertId', async (req, res) => {
+
+    try {
+
+        const result = await Plan.deleteOne({
+            userId: req.params.userId,
+            concertId: req.params.concertId
+        });
+
+
+        if(result.deletedCount === 1) {
+            res.json({ message: "The concert is deleted from your plan."});
+        }
+        else {
+
+            // send to the catch block
+            throw new Error();
         }
 
-        res.send("Login Successful.")
-    })
-    .catch((err) => {
-        res.send("Login Failed: " + err);
-    });
+    } catch (err) {
 
-});
+        res.json({
+            error: {
+                message: "There is an error deleting the plan!"
+            }
+        });
 
-app.get('/user/logout', (res, req)=> {
-    req.session.reset();
-    res.redirect("/user/login");
+    };
 })
 
 
 
-
-
-userService.initialize()
-.then(() => {
-    app.listen(HTTP_PORT, ()=> {
-        console.log("Server on: " + HTTP_PORT);
-    });
-})
-.catch((err) => {
-    console.log("Failed to start " + err);
+app.listen(HTTP_PORT, () => {
+    console.log("Server on: " + HTTP_PORT);
 });
