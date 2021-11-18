@@ -5,129 +5,40 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 dotenv.config();
 
-const Plan = require('./schemas/plan');
+const apiRouter = require('./routes/api');
+const connectDB = require('./schemas/index');
 
 const app = express();
 const HTTP_PORT = process.env.PORT || 8080;
-
-mongoose.connect(process.env.MONGODB_URI,
-    {},
-    (error) => {
-        if (error) {
-            console.log('DB connection failed');
-        }
-        else {
-            console.log('DB conncetion success');
-        }
-    });
-
+connectDB();
 
 // middleware
 app.use(express.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cors());
-
+app.use('/api', apiRouter);
 
 app.get('/', (req, res) => {
     res.send("Hello. This is YT concert's server.");
 });
 
+// 404 handling
+// custom middleware
+app.use((req, res, next) => {
+    const error = new Error("Not Found!");
+    error.status = 404;
+    next(error);
+});
 
-/*
-    GET
-    /api/users/:id/plans
-
-
-    POST
-    /api/users/:id/plans
-    
-    
-    DELETE
-    /api/users/:userId/plans/:concertId
-*/
-
-
-app.get('/api/users/:id/plans', async (req, res) => {
-
-    try {
-        const plans = await Plan.find({userId: req.params.id});
-        res.json(plans);
-    } catch (err) {
-        res.json({
-            error: {
-                message: err.message
-            }
-        });
-    };
-
-})
-
-app.post('/api/users/:id/plans', async (req, res) => {
-
-    const newPlan = {
-        userId: req.params.id,
-        concertId: req.body.concertId
-    };
-
-    try {
-        const planCreated = await Plan.create(newPlan);
-        res.json(planCreated);
-    } catch(err) {
-
-        // console.log(err)
-
-        if(err.code === 11000) {
-            res.json({
-                error: {
-                    message: "The concert is already added to the plan!"
-                }
-            });
+// Error handling
+app.use((err, req, res, next) => {
+    res.status(err.status || 500);
+    res.json({
+        error: {
+            message: err.message
         }
-        else {
-            res.json({
-                error: {
-                    message: err.message
-                }
-            });
-        }
-        
-    };
-    
-    
-})
-
-
-app.delete('/api/users/:userId/plans/:concertId', async (req, res) => {
-
-    try {
-
-        const result = await Plan.deleteOne({
-            userId: req.params.userId,
-            concertId: req.params.concertId
-        });
-
-
-        if(result.deletedCount === 1) {
-            res.json({ message: "The concert is deleted from your plan."});
-        }
-        else {
-
-            // send to the catch block
-            throw new Error();
-        }
-
-    } catch (err) {
-
-        res.json({
-            error: {
-                message: "There is an error deleting the plan!"
-            }
-        });
-
-    };
-})
-
-
+    });
+});
 
 app.listen(HTTP_PORT, () => {
     console.log("Server on: " + HTTP_PORT);
